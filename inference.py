@@ -1,7 +1,7 @@
 import os
 import sys
 from ADCNet import *
-from AntiBinder.model import *
+from AntiBinder.antibinder_model import *
 from AntiBinder.antigen_antibody_emb import *
 from AntiBinder.cfg_ab import * 
 from torch.utils.data import DataLoader
@@ -168,7 +168,7 @@ def process_antibody_antigen(sequences, new_dict, antigen_structure):
 def main():
 
     ADC_model = PredictModel().to(device)
-    ADC_model.load_state_dict(torch.load("ckpts/ABForm_wt.pth",map_location=device))
+    ADC_model.load_state_dict(torch.load("ckpts/Abform_50.pth",map_location=device))
     ADC_model.eval()
     AntiBinder_model = antibinder().to(device)
     AntiBinder_model.load_state_dict(torch.load("ckpts/AntiBinder_Weights.pth",map_location=device))
@@ -223,5 +223,5 @@ def main():
     output = torch.sigmoid(output)
     return int(output.item())
 
-if _name_ == "_main_":
+if __name__ == "__main__":
     main()
