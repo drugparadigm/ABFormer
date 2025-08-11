@@ -183,7 +183,7 @@ class bicrossatt(nn.Module):
 
 
 class antibinder(nn.Module):
-    def __init__(self,antibody_hidden_dim,antigen_hidden_dim,latent_dim,res=False) -> None:
+    def __init__(self,antibody_hidden_dim=1024,antigen_hidden_dim=1024,latent_dim=36,res=False) -> None:
         super().__init__()
         self.combined_embedding = Combine_Embedding(antibody_hidden_dim,antigen_hidden_dim)
         self.bicrossatt = bicrossatt(antibody_hidden_dim,latent_dim,res)
