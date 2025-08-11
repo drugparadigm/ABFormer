@@ -58,7 +58,7 @@ class AB_Data:
         return data_dict
 
 
-    def get_dataloaders(self,seed,train_ratio=0.9,valid_ratio=None,test_ratio= 0.1,batch_size = 40,use_ddp = False):
+    def get_dataloaders(self,seed,train_ratio=0.8,valid_ratio=0.1,test_ratio= 0.1,batch_size = 40,use_ddp = False):
         self.train_ratio = train_ratio
         self.seed = seed
         self.batch_size = batch_size
@@ -139,104 +139,62 @@ class AB_Data:
 
 
 
-        if valid_ratio is None:
-            train_size = int(train_ratio * len(dataset))
-            test_size = len(dataset) - train_size
-            
-            generator = torch.Generator().manual_seed(self.seed)
-
-
-            train_dataset, test_dataset = random_split(dataset, [train_size,test_size],generator = generator)
-            
-            self.train_dataset = train_dataset
-            self.test_dataset = test_dataset
-            
-            train_dataloader = DataLoader(train_dataset,batch_size = self.batch_size,shuffle = True)
-            test_dataloader = DataLoader(test_dataset, batch_size = self.batch_size, shuffle = False)
-
-            if use_ddp and dist.is_available() and dist.is_initialized():
-                train_sampler = DistributedSampler(train_dataset,shuffle = True, seed = self.seed)
-                
-                train_dataloader = DataLoader(
-                    train_dataset,
-                    batch_size=self.batch_size,
-                    sampler=train_sampler,
-                    shuffle=False,  # Must be False when using sampler
-                    num_workers=4,
-                    pin_memory=True
-                )
-                test_dataloader = DataLoader(
-                    test_dataset,
-                    batch_size=self.batch_size,
-                    shuffle=False,  # Must be False when using sampler
-                    pin_memory=True
-                )
-                
     
-    
-            self.train_loader = train_dataloader
-            self.test_loader = test_dataloader
-            
-            if use_ddp:
-                return train_dataloader, test_dataloader,train_sampler
-            else:
-                return train_dataloader, test_dataloader
 
-        else:
-            train_size = int(train_ratio * len(dataset))
-            valid_size = int(valid_ratio * len(dataset))
-            test_size = len(dataset) - train_size - valid_size  # ← This actually ensures total = len(dataset)
- # ensures total = len(dataset)
+        train_size = int(train_ratio * len(dataset))
+        valid_size = int(valid_ratio * len(dataset))
+        test_size = len(dataset) - train_size - valid_size  # ← This actually ensures total = len(dataset)
+# ensures total = len(dataset)
+    
+        generator = torch.Generator().manual_seed(self.seed)
+                
+        print(train_ratio,valid_ratio,test_ratio)        
+        train_dataset,valid_dataset, test_dataset = random_split(dataset, [train_size,valid_size,test_size],generator = generator)
+
+        self.train_dataset = train_dataset
+        self.valid_dataset = valid_dataset
+        self.test_dataset = test_dataset
+        train_dataloader = DataLoader(train_dataset,batch_size = self.batch_size,shuffle = True)
+        valid_dataloader = DataLoader(valid_dataset, batch_size = self.batch_size, shuffle = False)
+        test_dataloader = DataLoader(test_dataset, batch_size = self.batch_size, shuffle = False)
+
+
+        if use_ddp and dist.is_available() and dist.is_initialized():
+            train_sampler = DistributedSampler(train_dataset,shuffle = True, seed = self.seed)
+            
+            train_dataloader = DataLoader(
+                train_dataset,
+                batch_size=self.batch_size,
+                sampler=train_sampler,
+                shuffle=False,  # Must be False when using sampler
+                num_workers=4,
+                pin_memory=True
+            )
+
+            valid_dataloader = DataLoader(
+                valid_dataset,
+                batch_size = self.batch_size,
+                shuffle = False,
+                pin_memory = True
+            )
+            
+            test_dataloader = DataLoader(
+                test_dataset,
+                batch_size=self.batch_size,
+                shuffle=False,  # Must be False when using sampler
+                pin_memory=True
+            )
+            
+
+
+        self.train_loader = train_dataloader
+        self.test_loader = test_dataloader
+        self.valid_loader = valid_dataloader
         
-            generator = torch.Generator().manual_seed(self.seed)
-                    
-            print(train_ratio,valid_ratio,test_ratio)        
-            train_dataset,valid_dataset, test_dataset = random_split(dataset, [train_size,valid_size,test_size],generator = generator)
-    
-            self.train_dataset = train_dataset
-            self.valid_dataset = valid_dataset
-            self.test_dataset = test_dataset
-            train_dataloader = DataLoader(train_dataset,batch_size = self.batch_size,shuffle = True)
-            valid_dataloader = DataLoader(valid_dataset, batch_size = self.batch_size, shuffle = False)
-            test_dataloader = DataLoader(test_dataset, batch_size = self.batch_size, shuffle = False)
-
-
-            if use_ddp and dist.is_available() and dist.is_initialized():
-                train_sampler = DistributedSampler(train_dataset,shuffle = True, seed = self.seed)
-                
-                train_dataloader = DataLoader(
-                    train_dataset,
-                    batch_size=self.batch_size,
-                    sampler=train_sampler,
-                    shuffle=False,  # Must be False when using sampler
-                    num_workers=4,
-                    pin_memory=True
-                )
-    
-                valid_dataloader = DataLoader(
-                    valid_dataset,
-                    batch_size = self.batch_size,
-                    shuffle = False,
-                    pin_memory = True
-                )
-                
-                test_dataloader = DataLoader(
-                    test_dataset,
-                    batch_size=self.batch_size,
-                    shuffle=False,  # Must be False when using sampler
-                    pin_memory=True
-                )
-                
-    
-    
-            self.train_loader = train_dataloader
-            self.test_loader = test_dataloader
-            self.valid_loader = valid_dataloader
-            
-            if use_ddp:
-                return train_dataloader,valid_dataloader, test_dataloader,train_sampler
-            else:
-                return train_dataloader, valid_dataloader , test_dataloader
+        if use_ddp:
+            return train_dataloader,valid_dataloader, test_dataloader,train_sampler
+        else:
+            return train_dataloader, valid_dataloader , test_dataloader
             
         
 
