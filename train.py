@@ -9,7 +9,7 @@ from tqdm import tqdm
 from sklearn.metrics import accuracy_score
 import numpy as np
 from torch.utils.data import random_split
-from adc_dataset import *
+from AB_Data import *
 from ADCNet import *
 from utils import *
 import torch.nn as nn
