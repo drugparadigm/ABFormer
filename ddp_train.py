@@ -9,7 +9,7 @@ from tqdm import tqdm
 from sklearn.metrics import accuracy_score
 import numpy as np
 from torch.utils.data import random_split
-from adc_dataset import *
+from AB_Data import *
 from ADCNet import *
 from utils import *
 import torch.nn as nn
@@ -40,7 +40,7 @@ def main(seed_range):
                                 'pr_auc', 'ppv', 'npv'
                             ], 'logs/valid_logs/main_backup_valid_log.csv')
 
-    csv_path = "main.csv"
+    csv_path = "data/main.csv"
     pkl_paths = ["Embeddings/antibinder_heavy.pkl","Embeddings/Light.pkl","Embeddings/Antigen.pkl"]
     score_dict = {}
 
