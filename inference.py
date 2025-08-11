@@ -11,11 +11,21 @@ from igfold import IgFoldRunner
 import torch.nn.functional as F
 import pandas as pd 
 from abnumber import Chain
-from flask import request
-import json
 from transformers import BertConfig, BertTokenizer
 from transformers.tokenization_utils import Trie
 from transformers.models.bert.tokenization_bert import *
+import warnings
+
+# Suppress transformers verbosity
+os.environ["TRANSFORMERS_VERBOSITY"] = "error"
+os.environ["TRANSFORMERS_NO_ADVISORY_WARNINGS"] = "1"
+
+# Suppress warnings
+warnings.filterwarnings("ignore", category=FutureWarning)
+warnings.filterwarnings("ignore", category=UserWarning) 
+warnings.filterwarnings("ignore", message="To copy construct from a tensor*")
+
+
 torch.serialization.add_safe_globals([
     BertConfig,
     BertTokenizer,
@@ -27,7 +37,7 @@ torch.serialization.add_safe_globals([
 
 esm_model, alphabet = esm.pretrained.esm2_t33_650M_UR50D()
 batch_converter = alphabet.get_batch_converter()
-device = torch.device('cuda:1')
+device = torch.device('cuda:0')
 esm_model = esm_model.to(device)
 
 igfold = IgFoldRunner()
@@ -124,6 +134,7 @@ def get_esm2_embeddings(data):
 
 def process_antibody_antigen(sequences, new_dict, antigen_structure):
 
+    
     emb = igfold.embed(sequences=sequences)
     structure = emb.structure_embs.detach().cpu()
 
@@ -170,24 +181,31 @@ def main():
     ADC_model = PredictModel().to(device)
     ADC_model.load_state_dict(torch.load("ckpts/Abform_50.pth",map_location=device))
     ADC_model.eval()
-    AntiBinder_model = antibinder().to(device)
-    AntiBinder_model.load_state_dict(torch.load("ckpts/AntiBinder_Weights.pth",map_location=device))
-    AntiBinder_model.eval()
-    Antigen_Sequence = """MVSWGRFICLVVVTMATLSLARPSFSLVEDTTLEPEEPPTKYQISQPEVYVAAPGESLEVRCLLKDAAVISWTKDGVHLGPNNRTVLIGEYLQIKGATPRDSGLYACTASRTVDSETWYFMVNVTDAISSGDDEDDTDGAEDFVSENSNNKRAPYWTNTEKMEKRLHAVPAANTVKFRCPAGGNPMPTMRWLKNGKEFKQEHRIGGYKVRNQHWSLIMESVVPSDKGNYTCVVENEYGSINHTYHLDVVERSPHRPILQAGLPANASTVVGGDVEFVCKVYSDAQPHIQWIKHVEKNGSKYGPDGLPYLKVLKAAGVNTTDKEIEVLYIRNVTFEDAGEYTCLAGNSIGISFHSAWLTVLPAPGREKEITASPDYLEIAIYCIGVFLIACMVVTVILCRMKNTTKKPDFSSQPAVHKLTKRIPLRRQVTVSAESSSSMNSNTPLVRITTRLSSTADTPMLAGVSEYELPEDPKWEFPRDKLTLGKPLGEGCFGQVVMAEAVGIDKDKPKEAVTVAVKMLKDDATEKDLSDLVSEMEMMKMIGKHKNIINLLGACTQDGPLYVIVEYASKGNLREYLRARRPPGMEYSYDINRVPEEQMTFKDLVSCTYQLARGMEYLASQKCIHRDLAARNVLVTENNVMKIADFGLARDINNIDYYKKTTNGRLPVKWMAPEALFDRVYTHQSDVWSFGVLMWEIFTLGGSPYPGIPVEELFKLLKEGHRMDKPANCTNELYMMMRDCWHAVPSQRPTFKQLVEDLDRILTLTTNEEYLDLSQPLEQYSPSYPDTRSSCSSGDDSVFSPDPMPYEPCLPQYPHINGSVKT
-"""
-
-    Heavy_Chain_Sequence = "QVQLLESGGGLVQPGGSLRLSCAASGFTFSDYAMSWVRQAPGKGLEWVSTIEGDSNYIEYADSVKGRFTISRDNSKNTLYLQMNSLRAEDTAVYYCARERTYSSAFDYWGQGTLVTVSSASTKGPSVFPLAPSSKSTSGGTAALGCLVKDYFPEPVTVSWNSGALTSGVHTFPAVLQSSGLYSLSSVVTVPSSSLGTQTYICNVNHKPSNTKVDKRVEPKSCDKTHTCPPCPAPELLGGPSVFLFPPKPKDTLMISRTPEVTCVVVDVSHEDPEVKFNWYVDGVEVHNAKTKPREEQYNSTYRVVSVLTVLHQDWLNGKEYKCKVSNKALPAPIEKTISKAKGQPREPQVYTLPPSREEMTKNQVSLTCLVKGFYPSDIAVEWESNGQPENNYKTTPPVLDSDGSFFLYSKLTVDKSRWQQGNVFSCSVMHEALHNHYTQKSLSLSPGK"
-    Light_Chain_Sequence = "DIQMTQSPSSLSASVGDRVTITCRASQDISSDLNWYQQKPGKAPKLLIYDASNLQSGVPSRFSGSGSGTDFTLTISSLQPEDFATYYCHQWYSTLYTFGQGTKVEIKRTVAAPSVFIFPPSDEQLKSGTASVVCLLNNFYPREAKVQWKVDNALQSGNSQESVTEQDSKDSTYSLSSTLTLSKADYEKHKVYACEVTHQGLSSPVTKSFNRGEC"
-
-    Payload_IsoSmile = "C[C@@H]1[C@@H]2C[C@]([C@@H](/C=C/C=C(/CC3=CC(=C(C(=C3)OC)Cl)N(C(=O)C[C@@H]([C@]4([C@H]1O4)C)OC(=O)[C@H](C)N(C)C(=O)CCS)C)\C)OC)(NC(=O)O2)O"
+    checkpoint_path = "ckpts/AntiBinder_Weights.pth"
+    state_dict = torch.load(checkpoint_path, map_location=device)
     
-    Linker_IsoSmile = "C1CC(=O)N(C1=O)OC(=O)CCSSC2=CC=CC=N2"
-    DAR_value = 3.5
+    if all(key.startswith("module.") for key in state_dict.keys()):
+        new_state_dict = {key[len("module."):]: value for key, value in state_dict.items()}
+    else:
+        new_state_dict = state_dict
+    
+    AntiBinder_model = antibinder().to(device)
+    AntiBinder_model.load_state_dict(new_state_dict,strict=False)
+    AntiBinder_model.eval()
+
+    Antigen_Sequence="""MHLLGPWLLLLVLEYLAFSDSSKWVFEHPETLYAWEGACVWIPCTYRALDGDLESFILFHNPEYNKNTSKFDGTRLYESTKDGKVPSEQKRVQFLGDKNKNCTLSIHPVHLNDSGQLGLRMESKTEKWMERIHLNVSERPFPPHIQLPPEIQESQEVTLTCLLNFSCYGYPIQLQWLLEGVPMRQAAVTSTSLTIKSVFTRSELKFSPQWSHHGKIVTCQLQDADGKFLSNDTVQLNVKHTPKLEIKVTPSDAIVREGDSVTMTCEVSSSNPEYTTVSWLKDGTSLKKQNTFTLNLREVTKDQSGKYCCQVSNDVGPGRSEEVFLQVQYAPEPSTVQILHSPAVEGSQVEFLCMSLANPLPTNYTWYHNGKEMQGRTEEKVHIPKILPWHAGTYSCVAENILGTGQRGPGAELDVQYPPKKVTTVIQNPMPIREGDTVTLSCNYNSSNPSVTRYEWKPHGAWEEPSLGVLKIQNVGWDNTTIACAACNSWCSWASPVALNVQYAPRDVRVRKIKPLSEIHSGNSVSLQCDFSSSHPKEVQFFWEKNGRLLGKESQLNFDSISPEDAGSYSCWVNNSIGQTASKAWTLEVLYAPRRLRVSMSPGDQVMEGKSATLTCESDANPPVSHYTWFDWNNQSLPYHSQKLRLEPVKVQHSGAYWCQGTNSVGKGRSPLSTLTVYYSPETIGRRVAVGLGSCLAILILAICGLKLQRRWKRTQSQQGLQENSSGQSFFVRNKKVRRAPLSEGPHSLGCYNPMMEDGISYTTLRFPEMNIPRTGDAESSEMQRPPPDCDDTVTYSALHKRQVGDYENVIPDFPEDEGIHYSELIQFGVGERPQAQENVDYVILKH"""
+
+    Heavy_Chain_Sequence = "QVQLVQSGAEVKKPGSSVKVSCKASGYTFTSYWLHWVRQAPGQGLEWIGYINPRNDYTEYNQNFKDKATITADESTNTAYMELSSLRSEDTAFYFCARRDITTFYWGQGTTVTVSS"
+    Light_Chain_Sequence = "DIQLTQSPSSLSASVGDRVTMSCKSSQSVLYSANHKNYLAWYQQKPGKAPKLLIYWASTRESGVPSRFSGSGSGTDFTFTISSLQPEDIATYYCHQYLSSWTFGGGTKLEIK"
+
+    Payload_IsoSmile = "CCc1c2c(nc3ccc(O)cc13)-c1cc3c(c(=O)n1C2)COC(=O)C3(O)CC"
+    
+    Linker_IsoSmile = "C1CC(CCC1CN2C(=O)C=CC2=O)C(=O)NCC3=CN(N=N3)CCOCCOCCOCCOCCOCCOCCOCCOCCNC(=O)COCC(=O)N[C@@H](CCCCN)C(=O)NC4=CC=C(C=C4)CO"
+    DAR_value = 6
     
     DAR_value = torch.tensor(DAR_value, dtype=torch.float32).unsqueeze(0).unsqueeze(1).to(device)
     new_dict = {'x1': Linker_IsoSmile, 'x2':Payload_IsoSmile,'t1':Heavy_Chain_Sequence,'t2': Light_Chain_Sequence,'t3':Antigen_Sequence,'t4':DAR_value}
     heavy_regions = split_heavy_chain_regions(Heavy_Chain_Sequence)
-
     new_dict = new_dict | heavy_regions
     data = [('protein 1', Antigen_Sequence),('protein2',Light_Chain_Sequence)]
     
@@ -201,8 +219,8 @@ def main():
     heavy_emb_seq = new_dict['H-FR1'] + new_dict['H-CDR1'] + new_dict['H-FR2'] + new_dict['H-CDR2'] + new_dict['H-FR3'] + new_dict['H-CDR3']+new_dict['H-FR4']
     sequences = {'H' : heavy_emb_seq}
     antibody_set, antigen_set =  process_antibody_antigen(sequences, new_dict, antigen_structure)
-    antibody_set = (antibody_set[0].to(device), antibody_set[1].to(device), antibody_set[2].to(device))
-    antigen_set = (antigen_set[0].to(device), antigen_set[1].to(device))
+    antibody_set = [antibody_set[0].to(device), antibody_set[1].to(device), antibody_set[2].to(device)]
+    antigen_set = [antigen_set[0].to(device), antigen_set[1].to(device)]
 
     var_heavy_emb = AntiBinder_model(antibody_set, antigen_set)
     linker_encoded = numerical_smiles(Linker_IsoSmile)
@@ -213,15 +231,13 @@ def main():
     t1, t2, t3 = var_heavy_emb.to(device).float(), lightchain_embed.to(device).float(), antigen_embed.to(device).float()
     t4 = torch.tensor(DAR_value).reshape(1).to(device).float()
     
-    print(x1.shape, x2.shape, t1.shape, t2.shape, t3.shape, t4.shape)
-    
     output = ADC_model(
         x1, mask1=None, adjoin_matrix1=None,
         x2=x2, mask2=None, adjoin_matrix2=None,
         t1=t1, t2=t2, t3=t3, t4=t4
     )
     output = torch.sigmoid(output)
-    return int(output.item())
+    print("ADC Activity:  "+str(output.item()))
 
 if __name__ == "__main__":
     main()
