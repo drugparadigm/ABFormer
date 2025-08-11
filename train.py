@@ -28,7 +28,7 @@ def main(seed_range):
                         ], 'logs/valid_logs/main_backup_valid_log.csv')
 
         
-    csv_path = "main.csv"
+    csv_path = "data/main.csv"
     pkl_paths = ["Embeddings/antibinder_heavy.pkl","Embeddings/Light.pkl","Embeddings/Antigen.pkl"]
     score_dict = {}
 
