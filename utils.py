@@ -1,12 +1,9 @@
-# Standard library imports
 import os
 from os import path
-
-# Third-party data manipulation libraries
+import torch
 import pandas as pd
 import numpy as np
 
-# Scikit-learn imports for metrics
 from sklearn.metrics import (
     matthews_corrcoef,
     accuracy_score, 
@@ -22,14 +19,12 @@ class CSVLogger_my:
         if not self.check_header():
             self._write_header()
 
-
     def check_header(self):
         if path.exists(self.file):
             header=True
         else:
             header=False
         return header
-
 
     def _write_header(self):
         with open(self.file,"a") as f:
@@ -40,7 +35,6 @@ class CSVLogger_my:
             string+="\n"
             f.write(string)
         return self
-
 
     def log(self,row) :
         if len(row)!=len(self.columns) :
@@ -53,25 +47,24 @@ class CSVLogger_my:
             string+="\n"
             f.write(string)
 
-
-
-
 def score(y_true, y_pred_prob):
     y_pred = [1 if x >= 0.5 else 0 for x in y_pred_prob]
 
-    y_true_np = np.array([x.cpu() for x in y_true]).astype(int)
+    if isinstance(y_true, torch.Tensor):
+        y_true_np = y_true.cpu().numpy().astype(int)
+    else:
+        y_true_np = np.array(y_true).astype(int)
+
     y_pred_np = np.array(y_pred).astype(int)
-    y_pred_prob_np = np.array([x.cpu() for x in y_pred_prob])  # Keep as float for precision_recall
+    y_pred_prob_np = np.array([x.detach().cpu().numpy() if isinstance(x, torch.Tensor) else x for x in y_pred_prob])
+
 
     tp = np.sum((y_pred_np == 1) & (y_true_np == 1))
     tn = np.sum((y_pred_np == 0) & (y_true_np == 0))
     fp = np.sum((y_pred_np == 1) & (y_true_np == 0))
     fn = np.sum((y_pred_np == 0) & (y_true_np == 1))
 
-    # Sensitivity (Recall)
     se = tp / (tp + fn) if (tp + fn) > 0 else 0.0
-
-    # Specificity
     sp = tn / (tn + fp) if (tn + fp) > 0 else 0.0
 
     acc = (tp + tn) / (tp + tn + fp + fn) if (tp + tn + fp + fn) > 0 else 0.0
@@ -83,8 +76,6 @@ def score(y_true, y_pred_prob):
     prauc = auc(recall, precision)
 
     ppv = tp / (tp + fp) if (tp + fp) > 0 else 0.0
-
-    # NPV
     npv = tn / (tn + fn) if (tn + fn) > 0 else 0.0
 
     score_dict = {
@@ -106,14 +97,8 @@ def score(y_true, y_pred_prob):
 
     return score_dict
 
-
-
-
 def metrics_from_log(log_path):
   df = pd.read_csv(log_path)
-
-
-  # Assuming you have already loaded your DataFrame as df
   metrics = {
       "tp": np.max(df['tp']),
       "tn": np.max(df['tn']),
@@ -147,15 +132,5 @@ def metrics_from_log(log_path):
       "ppv": np.mean(df['PPV']),
       "npv": np.mean(df['NPV']),
   }
-
-  # print("\nMean values:")
-  # for name, value in metrics_mean.items():
-  #     print(f"{name}: {value}")
-
-  # print()
-  # print("Best values:")
-  # for name, value in metrics.items():
-  #     print(f"{name}: {value}")
-
   return metrics, metrics_mean
 
