@@ -51,7 +51,114 @@ class AB_Data:
         data_dict = {adc_id: torch.tensor(value, dtype=torch.float32) for adc_id, value in zip(df["ADC ID"], normalized_data.flatten())}
         return data_dict
 
+    def get_dataloaders_from_csv(self, train_csv='data/train_split.csv', val_csv='data/val_split.csv', test_csv='data/test_split.csv', batch_size=40):
+        """
+        Load train/val/test splits from CSV files instead of random splitting.
+        CSV files should contain 'ADC ID' column.
+        """
+        self.batch_size = batch_size
 
+        # Load CSVs
+        print("\nLoading pre-split data from CSV files...")
+        train_df = pd.read_csv(train_csv)
+        val_df = pd.read_csv(val_csv)
+        test_df = pd.read_csv(test_csv)
+
+        # Extract IDs
+        train_ids = train_df['ADC ID'].tolist()
+        val_ids = val_df['ADC ID'].tolist()
+        test_ids = test_df['ADC ID'].tolist()
+
+        print(f"CSV splits - Train: {len(train_ids)}, Val: {len(val_ids)}, Test: {len(test_ids)}")
+
+        # Load embeddings
+        heavy_dict = self.cover_dict(self.heavy_path)
+        light_dict = self.cover_dict(self.light_path)
+        antigen_dict = self.cover_dict(self.antigen_path)
+        dar_val = self.DAR_feature(self.csv_path, "DAR_val")
+
+        # Preprocessing for linkers and payloads
+        payload_dict = {k: v for k, v in zip(self.df["ADC ID"], self.df["Payload Isosmiles"])}
+        linker_dict = {k: v for k, v in zip(self.df["ADC ID"], self.df["Linker Isosmiles"])}
+
+        # Filtering other dicts
+        light_dict = {k: v for k, v in light_dict.items() if k in heavy_dict.keys()}
+        antigen_dict = {k: v for k, v in antigen_dict.items() if k in heavy_dict.keys()}
+        dar_dict = {k: v for k, v in dar_val.items() if k in heavy_dict.keys()}
+        payload_dict = {k: v for k, v in payload_dict.items() if k in heavy_dict.keys()}
+        linker_dict = {k: v for k, v in linker_dict.items() if k in heavy_dict.keys()}
+
+        # Accounting for alt_rows
+        alt_rows = [43, 148, 204]
+        alt_ids = [row["ADC ID"] for index, row in self.df.iterrows() if index in alt_rows]
+        heavy_dict = {k: v for k, v in heavy_dict.items() if k not in alt_ids}
+        light_dict = {k: v for k, v in light_dict.items() if k not in alt_ids}
+        antigen_dict = {k: v for k, v in antigen_dict.items() if k not in alt_ids}
+        linker_dict = {k: v for k, v in linker_dict.items() if k not in alt_ids}
+        payload_dict = {k: v for k, v in payload_dict.items() if k not in alt_ids}
+
+        # Smiles encoding
+        main_linker_dict = {k: self.numerical_smiles(v)[0] for k, v in linker_dict.items()}
+        main_payload_dict = {k: self.numerical_smiles(v)[0] for k, v in payload_dict.items()}
+
+        # Build labels dict
+        labels = {}
+        for index, row in self.df.iterrows():
+            if row["ADC ID"] not in alt_ids and row["ADC ID"] in heavy_dict.keys():
+                labels[row["ADC ID"]] = row["label（1000nm）"]
+
+        # Helper function to create dataset from IDs
+        def create_dataset_from_ids(id_list):
+            t1, t2, t3, t4, x1, x2, labels_list = [], [], [], [], [], [], []
+
+            for adc_id in id_list:
+                if adc_id in heavy_dict.keys() and adc_id not in alt_ids:
+                    t1.append(heavy_dict[adc_id].squeeze())
+                    t2.append(light_dict[adc_id])
+                    t3.append(antigen_dict[adc_id])
+                    t4.append(dar_dict[adc_id])
+                    x1.append(main_payload_dict[adc_id])
+                    x2.append(main_linker_dict[adc_id])
+                    labels_list.append(labels[adc_id])
+
+            x1 = [torch.tensor(x) for x in x1]
+            x2 = [torch.tensor(x) for x in x2]
+            t4 = torch.tensor(t4)
+
+            x1 = [F.pad(x, pad=(0, 195 - x.shape[0])) for x in x1]
+            x2 = [F.pad(x, pad=(0, 184 - x.shape[0])) for x in x2]
+            x1 = torch.tensor(np.array(x1))
+            x2 = torch.tensor(np.array(x2))
+
+            t1 = torch.tensor(np.array([x.cpu() for x in t1]))
+            t2 = torch.tensor(np.array([x.cpu() for x in t2]))
+            t3 = torch.tensor(np.array([x.cpu() for x in t3]))
+            t4 = torch.tensor(np.array([x.cpu() for x in t4]))
+            labels_list = torch.tensor(labels_list)
+
+            return TensorDataset(x1, x2, t1, t2, t3, t4, labels_list)
+
+        # Create datasets
+        train_dataset = create_dataset_from_ids(train_ids)
+        val_dataset = create_dataset_from_ids(val_ids)
+        test_dataset = create_dataset_from_ids(test_ids)
+
+        print(f"Datasets created - Train: {len(train_dataset)}, Val: {len(val_dataset)}, Test: {len(test_dataset)}")
+
+        # Create dataloaders
+        train_loader = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True)
+        val_loader = DataLoader(val_dataset, batch_size=self.batch_size, shuffle=False)
+        test_loader = DataLoader(test_dataset, batch_size=self.batch_size, shuffle=False)
+
+        self.train_dataset = train_dataset
+        self.valid_dataset = val_dataset
+        self.test_dataset = test_dataset
+        self.train_loader = train_loader
+        self.valid_loader = val_loader
+        self.test_loader = test_loader
+
+        return train_loader, val_loader, test_loader
+        
     def get_dataloaders(self,seed,train_ratio=0.8,valid_ratio=0.1,test_ratio= 0.1,batch_size = 40,use_ddp = False):
         self.train_ratio = train_ratio
         self.seed = seed
