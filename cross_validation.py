@@ -1,3 +1,9 @@
+"""
+5-Fold Cross-Validation Training Script for ADCNet - FULL METRICS VERSION
+=========================================================================
+Computes comprehensive metrics: SE, SP, ACC, AUC, PRAUC, F1, PPV, MCC, BA, NPV
+"""
+
 import os
 import warnings
 warnings.filterwarnings('ignore')
@@ -21,11 +27,17 @@ import traceback
 import sys
 
 
+# ============================================================================
+# CONFIGURATION SECTION
+# ============================================================================
+
 class Config:
     """Centralized configuration for 5-fold CV training"""
 
+    # ===== GPU SETTINGS =====
     CUDA_DEVICE = '0'
 
+    # ===== DATA PATHS =====
     DATA_FILE_PATH = "data/data.xlsx"
     EMBEDDING_PATHS = [
         "Embeddings/antibinder_heavy.pkl",
@@ -33,47 +45,58 @@ class Config:
         "Embeddings/Antigen.pkl"
     ]
 
+    # ===== MODEL PATHS =====
     PRETRAINED_MODEL_PATH = "model_weights/modified_model.pth"
     CHECKPOINT_DIR = "ckpts_cv"
+
+    # ===== OUTPUT PATHS =====
     RESULTS_CSV = "ADCNet_5fold_cv_full_metrics.csv"
     LOG_DIR = "ADCNET_LOGS_CV"
 
+    # ===== MODEL ARCHITECTURE =====
     NUM_LAYERS = 6
     D_MODEL = 256
     DFF = 512
     NUM_HEADS = 8
     VOCAB_SIZE = 18
-    
+
+    # ===== CROSS-VALIDATION SETTINGS =====
     N_FOLDS = 5
     SEEDS = 49
-    USE_SEPARATE_TEST_SET = False
     TEST_RATIO = 0.1
 
+    # ===== TRAINING HYPERPARAMETERS =====
     BATCH_SIZE = 8
     MAX_EPOCHS = 200
     MIN_CHECKPOINT_EPOCH = 20
     PATIENCE = 30
 
+    # ===== OPTIMIZER SETTINGS =====
     LEARNING_RATE = 1e-4
     WEIGHT_DECAY = 1e-4
     GRAD_CLIP_NORM = 1.0
 
+    # ===== SCHEDULER SETTINGS =====
     SCHEDULER_MODE = 'max'
     SCHEDULER_FACTOR = 0.5
     SCHEDULER_PATIENCE = 5
     SCHEDULER_MIN_LR = 1e-7
 
+    # ===== LOSS FUNCTION SETTINGS =====
     USE_POS_WEIGHT = True
     POS_WEIGHT_VALUE = 0.30
 
+    # ===== EVALUATION SETTINGS =====
     DECISION_THRESHOLD = 0.5
     PRIMARY_METRIC = 'auc'
     SECONDARY_METRIC = 'acc'
 
+    # ===== LOGGING SETTINGS =====
     VERBOSE = True
     SHOW_PROGRESS_BARS = True
     PROGRESS_BAR_WIDTH = 30
 
+    # ===== ERROR HANDLING =====
     PRINT_FULL_TRACEBACK = True
     CONTINUE_ON_ERROR = True
 
@@ -99,18 +122,47 @@ def compute_all_metrics(all_labels, all_outputs, threshold=0.5):
     tn, fp, fn, tp = confusion_matrix(all_labels, predictions).ravel()
 
     # Basic metrics
-    accuracy = accuracy_score(all_labels, predictions)
-    auc = roc_auc_score(all_labels, all_outputs)
-    prauc = average_precision_score(all_labels, all_outputs)
-    f1 = f1_score(all_labels, predictions, zero_division=0)
-    mcc = matthews_corrcoef(all_labels, predictions)
-    balanced_acc = balanced_accuracy_score(all_labels, predictions)
-    ppv = precision_score(all_labels, predictions, zero_division=0)
+    try:
+        accuracy = accuracy_score(all_labels, predictions)
+    except:
+        accuracy = 0.0
+
+    try:
+        auc = roc_auc_score(all_labels, all_outputs)
+    except:
+        auc = 0.0
+
+    try:
+        prauc = average_precision_score(all_labels, all_outputs)
+    except:
+        prauc = 0.0
+
+    try:
+        f1 = f1_score(all_labels, predictions, zero_division=0)
+    except:
+        f1 = 0.0
+
+    try:
+        mcc = matthews_corrcoef(all_labels, predictions)
+    except:
+        mcc = 0.0
+
+    try:
+        balanced_acc = balanced_accuracy_score(all_labels, predictions)
+    except:
+        balanced_acc = 0.0
+
+    try:
+        ppv = precision_score(all_labels, predictions, zero_division=0)
+    except:
+        ppv = 0.0
 
     # Sensitivity (Recall / True Positive Rate)
     sensitivity = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+
     # Specificity (True Negative Rate)
     specificity = tn / (tn + fp) if (tn + fp) > 0 else 0.0
+
     # NPV (Negative Predictive Value)
     npv = tn / (tn + fn) if (tn + fn) > 0 else 0.0
 
@@ -364,19 +416,8 @@ def train_cv_one_seed(seed, config, device):
     dataset_loader = AB_Data(config.DATA_FILE_PATH, config.EMBEDDING_PATHS)
     dataset_loader.get_dataloaders(seed=seed, batch_size=config.BATCH_SIZE)
 
-    # Get the full dataset
-    if config.USE_SEPARATE_TEST_SET:
-        from torch.utils.data import random_split
-        full_dataset = dataset_loader.train_dataset.dataset
-        total_size = len(full_dataset)
-        test_size = int(config.TEST_RATIO * total_size)
-        cv_size = total_size - test_size
-
-        generator = torch.Generator().manual_seed(seed)
-        cv_dataset, test_dataset = random_split(full_dataset, [cv_size, test_size], generator=generator)
-    else:
-        cv_dataset = dataset_loader.train_dataset.dataset
-        test_dataset = None
+    cv_dataset = dataset_loader.train_dataset.dataset
+    test_dataset = None
 
     # Get labels for stratification
     labels = [cv_dataset[i][-1].item() for i in range(len(cv_dataset))]
@@ -437,37 +478,6 @@ def train_cv_one_seed(seed, config, device):
 
     avg_results['fold_results'] = fold_results
 
-    # Optional: Evaluate on held-out test set
-    if config.USE_SEPARATE_TEST_SET and test_dataset is not None:
-        test_loader = DataLoader(test_dataset, batch_size=config.BATCH_SIZE, shuffle=False)
-
-        # Use model from best fold (by primary metric)
-        primary_key = f'val_{config.PRIMARY_METRIC.upper()}'
-        best_fold = max(fold_results, key=lambda x: x[primary_key])
-
-        model = PredictModel(
-            num_layers=config.NUM_LAYERS,
-            d_model=config.D_MODEL,
-            dff=config.DFF,
-            num_heads=config.NUM_HEADS,
-            vocab_size=config.VOCAB_SIZE
-        ).to(device)
-        model.load_state_dict(torch.load(best_fold['model_path']))
-
-        if config.USE_POS_WEIGHT:
-            pos_weight = torch.tensor([config.POS_WEIGHT_VALUE]).to(device)
-            criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
-        else:
-            criterion = nn.BCEWithLogitsLoss()
-
-        test_loss, test_metrics, _, _ = evaluate_model_with_threshold(
-            model, test_loader, device, criterion, threshold=config.DECISION_THRESHOLD
-        )
-
-        # Add test metrics
-        avg_results['test_loss'] = test_loss
-        for metric in metric_names:
-            avg_results[f'test_{metric}'] = test_metrics[metric]
 
     return avg_results
 
@@ -487,12 +497,6 @@ def main():
         metric_names = ['SE', 'SP', 'ACC', 'AUC', 'PRAUC', 'F1', 'PPV', 'MCC', 'BA', 'NPV']
         for metric in metric_names:
             header.extend([f'avg_val_{metric}', f'std_val_{metric}'])
-
-        # Add test metrics if using separate test set
-        if Config.USE_SEPARATE_TEST_SET:
-            header.append('test_loss')
-            for metric in metric_names:
-                header.append(f'test_{metric}')
 
         writer.writerow(header)
 
@@ -530,11 +534,6 @@ def main():
                 row.append(f"{result[f'avg_val_{metric}']:.4f}")
                 row.append(f"{result[f'std_val_{metric}']:.4f}")
 
-            # Add test metrics if available
-            if Config.USE_SEPARATE_TEST_SET and f'test_SE' in result:
-                row.append(f"{result['test_loss']:.6f}")
-                for metric in metric_names:
-                    row.append(f"{result[f'test_{metric}']:.4f}")
 
             writer.writerow(row)
 
