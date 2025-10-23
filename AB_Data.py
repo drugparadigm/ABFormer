@@ -1,18 +1,12 @@
-# Standard library imports
 import os
 import csv
 import pickle
-
-# Third-party data manipulation libraries
 import pandas as pd
 import numpy as np
-
-# PyTorch imports
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, random_split, TensorDataset
 
-# RDKit imports
 from rdkit import Chem
 from rdkit import RDConfig
 from rdkit.Chem import rdmolfiles
@@ -29,7 +23,7 @@ class AB_Data:
         self.heavy_path = pkl_paths[0]
         self.light_path = pkl_paths[1]
         self.antigen_path = pkl_paths[2]
-        self.df = pd.read_csv(self.csv_path)
+        self.df = pd.read_excel(self.csv_path)
 
         self.str2num = {'<pad>':0 ,'H': 1, 'C': 2, 'N': 3, 'O': 4, 'S': 5, 'F': 6, 'Cl': 7, 'Br': 8, 'P':  9,
          'I': 10,'Na': 11,'B':12,'Se':13,'Si':14,'<unk>':15,'<mask>':16,'<global>':17}
@@ -47,7 +41,7 @@ class AB_Data:
 
 
     def DAR_feature(self,file_path, column_name):
-        df = pd.read_csv(file_path)
+        df = pd.read_excel(file_path)
         column_data = df[column_name].values.reshape(-1, 1)
         mean_value = 3.86845977
         variance_value = 1.569108443
@@ -68,7 +62,6 @@ class AB_Data:
         antigen_dict = self.cover_dict(self.antigen_path)
         dar_val = self.DAR_feature(self.csv_path,"DAR_val")
 
-        #preprocessing for linkers and payloads
         payload_dict = {k:v for k,v in zip(self.df["ADC ID"],self.df["Payload Isosmiles"])}
         linker_dict = {k:v for k,v in zip(self.df["ADC ID"],self.df["Linker Isosmiles"])}
 
@@ -143,8 +136,7 @@ class AB_Data:
 
         train_size = int(train_ratio * len(dataset))
         valid_size = int(valid_ratio * len(dataset))
-        test_size = len(dataset) - train_size - valid_size  # ← This actually ensures total = len(dataset)
-# ensures total = len(dataset)
+        test_size = len(dataset) - train_size - valid_size 
     
         generator = torch.Generator().manual_seed(self.seed)
                 
@@ -166,7 +158,7 @@ class AB_Data:
                 train_dataset,
                 batch_size=self.batch_size,
                 sampler=train_sampler,
-                shuffle=False,  # Must be False when using sampler
+                shuffle=False,
                 num_workers=4,
                 pin_memory=True
             )
@@ -181,12 +173,10 @@ class AB_Data:
             test_dataloader = DataLoader(
                 test_dataset,
                 batch_size=self.batch_size,
-                shuffle=False,  # Must be False when using sampler
+                shuffle=False, 
                 pin_memory=True
             )
             
-
-
         self.train_loader = train_dataloader
         self.test_loader = test_dataloader
         self.valid_loader = valid_dataloader
@@ -196,12 +186,7 @@ class AB_Data:
         else:
             return train_dataloader, valid_dataloader , test_dataloader
             
-        
-
-        
-
-
-    def smiles2adjoin(self,smiles,explicit_hydrogens=True,canonical_atom_order=False): # Converting molecules in SMILES format to atom lists and adjacency matrices
+    def smiles2adjoin(self,smiles,explicit_hydrogens=True,canonical_atom_order=False): 
 
         mol = Chem.MolFromSmiles(smiles)
         if mol is None:
@@ -251,7 +236,7 @@ class AB_Data:
         return task_names
 
         
-    def fg_list(self): # 47 FGs list
+    def fg_list(self):
         fName=os.path.join(RDConfig.RDDataDir,'FunctionalGroups.txt')
         fparams = FragmentCatalog.FragCatParams(1,6,fName)
         fg_list = []
@@ -262,7 +247,6 @@ class AB_Data:
         x = [Chem.MolToSmiles(_) for _ in fg_list]+['*C=C','*F','*Cl','*Br','*I','[Na+]','*P','*P=O','*[Se]','*[Si]']
         y = set(x)
         return list(y)
-
 
 
     def numerical_smiles(self,smiles):
