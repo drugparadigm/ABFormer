@@ -77,3 +77,22 @@ Two specialized molecular encoders, fine-tuned on ADC datasets, process the chem
  0 [Inactive ADC]
  
  1 [Active ADC]
+
+----------------------------
+
+ ## Script Commands:
+ ### Run training on random split dataset:
+`python train.py `
+
+ 
+ ### Run training on unique Antgen-Antibody pairs Split: 
+ `python train.py --unique_split `
+
+ ### Run ablation variant training:
+ `python ablation.py`
+
+ ### Run 5Fold Cross Validation Test:
+ `python cross_validation_test.py`
+
+ ### Run Inference:
+ `python inference.py --json_path="data.json"`
