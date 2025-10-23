@@ -1,9 +1,3 @@
-"""
-5-Fold Cross-Validation Training Script for ADCNet - FULL METRICS VERSION
-=========================================================================
-Computes comprehensive metrics: SE, SP, ACC, AUC, PRAUC, F1, PPV, MCC, BA, NPV
-"""
-
 import os
 import warnings
 warnings.filterwarnings('ignore')
@@ -27,79 +21,58 @@ import traceback
 import sys
 
 
-# ============================================================================
-# CONFIGURATION SECTION
-# ============================================================================
-
 class Config:
     """Centralized configuration for 5-fold CV training"""
 
-    # ===== GPU SETTINGS =====
     CUDA_DEVICE = '0'
 
-    # ===== DATA PATHS =====
     DATA_FILE_PATH = "data/data.xlsx"
     EMBEDDING_PATHS = [
         "Embeddings/antibinder_heavy.pkl",
         "Embeddings/Light.pkl",
         "Embeddings/Antigen.pkl"
     ]
-
-    # ===== MODEL PATHS =====
     PRETRAINED_MODEL_PATH = "model_weights/modified_model.pth"
     CHECKPOINT_DIR = "ckpts_cv"
 
-    # ===== OUTPUT PATHS =====
     RESULTS_CSV = "ADCNet_5fold_cv_full_metrics.csv"
     LOG_DIR = "ADCNET_LOGS_CV"
 
-    # ===== MODEL ARCHITECTURE =====
     NUM_LAYERS = 6
     D_MODEL = 256
     DFF = 512
     NUM_HEADS = 8
     VOCAB_SIZE = 18
 
-    # ===== CROSS-VALIDATION SETTINGS =====
     N_FOLDS = 5
     SEEDS = 49
     TEST_RATIO = 0.1
 
-    # ===== TRAINING HYPERPARAMETERS =====
     BATCH_SIZE = 8
     MAX_EPOCHS = 200
     MIN_CHECKPOINT_EPOCH = 20
     PATIENCE = 30
 
-    # ===== OPTIMIZER SETTINGS =====
     LEARNING_RATE = 1e-4
     WEIGHT_DECAY = 1e-4
     GRAD_CLIP_NORM = 1.0
 
-    # ===== SCHEDULER SETTINGS =====
     SCHEDULER_MODE = 'max'
     SCHEDULER_FACTOR = 0.5
     SCHEDULER_PATIENCE = 5
     SCHEDULER_MIN_LR = 1e-7
 
-    # ===== LOSS FUNCTION SETTINGS =====
     USE_POS_WEIGHT = True
     POS_WEIGHT_VALUE = 0.30
-
-    # ===== EVALUATION SETTINGS =====
     DECISION_THRESHOLD = 0.5
     PRIMARY_METRIC = 'auc'
     SECONDARY_METRIC = 'acc'
 
-    # ===== LOGGING SETTINGS =====
     VERBOSE = True
     SHOW_PROGRESS_BARS = True
     PROGRESS_BAR_WIDTH = 30
 
-    # ===== ERROR HANDLING =====
     PRINT_FULL_TRACEBACK = True
-    CONTINUE_ON_ERROR = True
-
 
 def set_seed(seed):
     """Set seed for reproducibility"""
@@ -121,48 +94,17 @@ def compute_all_metrics(all_labels, all_outputs, threshold=0.5):
     # Confusion matrix
     tn, fp, fn, tp = confusion_matrix(all_labels, predictions).ravel()
 
-    # Basic metrics
-    try:
-        accuracy = accuracy_score(all_labels, predictions)
-    except:
-        accuracy = 0.0
-
-    try:
-        auc = roc_auc_score(all_labels, all_outputs)
-    except:
-        auc = 0.0
-
-    try:
-        prauc = average_precision_score(all_labels, all_outputs)
-    except:
-        prauc = 0.0
-
-    try:
-        f1 = f1_score(all_labels, predictions, zero_division=0)
-    except:
-        f1 = 0.0
-
-    try:
-        mcc = matthews_corrcoef(all_labels, predictions)
-    except:
-        mcc = 0.0
-
-    try:
-        balanced_acc = balanced_accuracy_score(all_labels, predictions)
-    except:
-        balanced_acc = 0.0
-
-    try:
-        ppv = precision_score(all_labels, predictions, zero_division=0)
-    except:
-        ppv = 0.0
-
+    accuracy = accuracy_score(all_labels, predictions)
+    auc = roc_auc_score(all_labels, all_outputs)
+    prauc = average_precision_score(all_labels, all_outputs)
+    f1 = f1_score(all_labels, predictions, zero_division=0)
+    mcc = matthews_corrcoef(all_labels, predictions)
+    balanced_acc = balanced_accuracy_score(all_labels, predictions)
+    ppv = precision_score(all_labels, predictions, zero_division=0)
     # Sensitivity (Recall / True Positive Rate)
     sensitivity = tp / (tp + fn) if (tp + fn) > 0 else 0.0
-
     # Specificity (True Negative Rate)
     specificity = tn / (tn + fp) if (tn + fp) > 0 else 0.0
-
     # NPV (Negative Predictive Value)
     npv = tn / (tn + fn) if (tn + fn) > 0 else 0.0
 
