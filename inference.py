@@ -17,6 +17,7 @@ from AntiBinder.antibinder_model import *
 from AntiBinder.antigen_antibody_emb import *
 from AntiBinder.cfg_ab import *
 
+import argparse
 os.environ["TRANSFORMERS_VERBOSITY"] = "error"
 os.environ["TRANSFORMERS_NO_ADVISORY_WARNINGS"] = "1"
 warnings.filterwarnings("ignore")
