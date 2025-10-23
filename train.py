@@ -1,7 +1,7 @@
 import os
 import warnings
 warnings.filterwarnings('ignore')
-
+import argparse
 import torch
 import torch.nn as nn
 from torch.optim.lr_scheduler import ReduceLROnPlateau
@@ -41,7 +41,7 @@ class Config:
     NUM_HEADS = 8
     VOCAB_SIZE = 18
     
-    SEEDS = [49] 
+    SEEDS = 49
     BATCH_SIZE = 8
     MAX_EPOCHS = 100
     MIN_CHECKPOINT_EPOCH = 20 
@@ -68,8 +68,6 @@ class Config:
     PROGRESS_BAR_WIDTH = 30 
     
     PRINT_FULL_TRACEBACK = True  
-    CONTINUE_ON_ERROR = True  
-
 
 def set_seed(seed):
     """Set seed for reproducibility"""
@@ -132,7 +130,7 @@ def evaluate_model_with_threshold(model, data_loader, device, criterion, thresho
     return avg_loss, accuracy, auc_score, prauc_score, sensitivity, specificity, all_labels, all_outputs
 
 
-def train_one_seed(seed, config, device):
+def train_one_seed(seed, config, device,UNIQUE_SPLIT):
     """
     Train with improved checkpointing strategy and PRAUC tracking.
     Returns dict with all metrics including best_epoch.
@@ -154,11 +152,14 @@ def train_one_seed(seed, config, device):
         print(f"[INFO] Seed {seed} | Loading data from: {config.DATA_FILE_PATH}")
     
     dataset = AB_Data(config.DATA_FILE_PATH, config.EMBEDDING_PATHS)
-    train_loader, val_loader, test_loader = dataset.get_dataloaders(
-        batch_size=config.BATCH_SIZE,
-        seed=seed
-    )
-    
+    if UNIQUE_SPLIT:
+        train_loader, val_loader, test_loader = dataset.get_dataloaders_from_csv(batch_size=config.BATCH_SIZE)
+    else:
+        train_loader, val_loader, test_loader = dataset.get_dataloaders(
+            batch_size=config.BATCH_SIZE,
+            seed=seed
+        )
+        
     if config.VERBOSE:
         print(f"[INFO] Seed {seed} | Data loaded successfully")
 
@@ -403,7 +404,8 @@ def train_one_seed(seed, config, device):
     return results
 
 
-def main():
+def main(unique_split):
+    UNIQUE_SPLIT=unique_split
     """Main training loop"""
     # Set environment variable
     os.environ['CUDA_VISIBLE_DEVICES'] = Config.CUDA_DEVICE
@@ -422,185 +424,49 @@ def main():
         ])
 
     print(f"\n{'='*80}")
-    print(f"ADCNet Training - Seeds {Config.SEEDS[0]}-{Config.SEEDS[-1]}")
     print(f"Results will be saved to: {Config.RESULTS_CSV}")
     print(f"Epoch logs will be saved to: {Config.LOG_DIR}/")
     print(f"Primary Metric: {Config.PRIMARY_METRIC.upper()}")
     print(f"{'='*80}\n")
 
-    all_results = []
-    successful_seeds = []
-    failed_seeds = []
 
-    for seed in Config.SEEDS:
-        print(f"\n{'#'*80}")
-        print(f"# SEED {seed}/{Config.SEEDS[-1]}")
-        print(f"{'#'*80}")
+    seed=Config.SEEDS
+    print(f"\n{'#'*80}")
+    print(f"# SEED {seed}")
+    print(f"{'#'*80}")
 
-        try:
-            result = train_one_seed(seed, Config, device)
+    result = train_one_seed(seed, Config, device,UNIQUE_SPLIT)
 
-            if result is not None:
-                all_results.append(result)
-                successful_seeds.append(seed)
 
-                # Write result immediately to CSV - updated to include all metrics
-                with open(Config.RESULTS_CSV, 'a', newline='') as f:
-                    writer = csv.writer(f)
-                    writer.writerow([
-                        result['seed'],
-                        result['best_epoch'],
-                        f"{result['val_loss']:.6f}",
-                        f"{result['val_acc']:.4f}",
-                        f"{result['val_auc']:.4f}",
-                        f"{result['val_prauc']:.4f}",
-                        f"{result['val_sensitivity']:.4f}",
-                        f"{result['val_specificity']:.4f}",
-                        f"{result['test_loss']:.6f}",
-                        f"{result['test_se']:.4f}",
-                        f"{result['test_sp']:.4f}",
-                        f"{result['test_mcc']:.4f}",
-                        f"{result['test_acc']:.4f}",
-                        f"{result['test_auc']:.4f}",
-                        f"{result['test_f1']:.4f}",
-                        f"{result['test_ba']:.4f}",
-                        f"{result['test_prauc']:.4f}",
-                        f"{result['test_ppv']:.4f}",
-                        f"{result['test_npv']:.4f}"
-                    ])
-            else:
-                failed_seeds.append(seed)
-                print(f"[WARNING] Seed {seed} failed to produce results")
+    # Write result immediately to CSV - updated to include all metrics
+    with open(Config.RESULTS_CSV, 'a', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow([
+            result['seed'],
+            result['best_epoch'],
+            f"{result['val_loss']:.6f}",
+            f"{result['val_acc']:.4f}",
+            f"{result['val_auc']:.4f}",
+            f"{result['val_prauc']:.4f}",
+            f"{result['val_sensitivity']:.4f}",
+            f"{result['val_specificity']:.4f}",
+            f"{result['test_loss']:.6f}",
+            f"{result['test_se']:.4f}",
+            f"{result['test_sp']:.4f}",
+            f"{result['test_mcc']:.4f}",
+            f"{result['test_acc']:.4f}",
+            f"{result['test_auc']:.4f}",
+            f"{result['test_f1']:.4f}",
+            f"{result['test_ba']:.4f}",
+            f"{result['test_prauc']:.4f}",
+            f"{result['test_ppv']:.4f}",
+            f"{result['test_npv']:.4f}"
+        ])
 
-        except Exception as e:
-            failed_seeds.append(seed)
-            
-            if Config.PRINT_FULL_TRACEBACK:
-                print(f"\n{'='*80}")
-                print(f"[ERROR] Seed {seed} encountered error:")
-                print(f"{'='*80}")
-                print(f"Error type: {type(e).__name__}")
-                print(f"Error message: {str(e)}")
-                print(f"\n{'='*80}")
-                print("FULL TRACEBACK:")
-                print(f"{'='*80}")
-                traceback.print_exc()
-                print(f"{'='*80}\n")
-            else:
-                print(f"[ERROR] Seed {seed} encountered error: {str(e)}")
-            
-            if not Config.CONTINUE_ON_ERROR:
-                print("[FATAL] Stopping execution due to error (CONTINUE_ON_ERROR=False)")
-                sys.exit(1)
-            
-            continue
-
-    # Calculate and append summary statistics
-    if all_results:
-        print(f"\n{'='*80}")
-        print(f"FINAL SUMMARY - {len(all_results)} Successful Seeds")
-        print(f"{'='*80}")
-
-        # Calculate means and stds - updated to include all metrics
-        metrics_to_average = [
-            'val_loss', 'val_acc', 'val_auc', 'val_prauc', 'val_sensitivity', 'val_specificity',
-            'test_loss', 'test_se', 'test_sp', 'test_mcc', 'test_acc', 'test_auc',
-            'test_f1', 'test_ba', 'test_prauc', 'test_ppv', 'test_npv'
-        ]
-
-        summary_stats = {}
-        for metric in metrics_to_average:
-            values = [r[metric] for r in all_results]
-            summary_stats[f'{metric}_mean'] = np.mean(values)
-            summary_stats[f'{metric}_std'] = np.std(values)
-
-        # Average best epoch
-        avg_best_epoch = np.mean([r['best_epoch'] for r in all_results])
-        std_best_epoch = np.std([r['best_epoch'] for r in all_results])
-
-        # Print key metrics
-        print(f"\nValidation Metrics (at best epoch):")
-        print(f"  Val PRAUC:     {summary_stats['val_prauc_mean']:.4f} ± {summary_stats['val_prauc_std']:.4f}")
-        print(f"  Val AUC:       {summary_stats['val_auc_mean']:.4f} ± {summary_stats['val_auc_std']:.4f}")
-        print(f"  Val Accuracy:  {summary_stats['val_acc_mean']:.4f} ± {summary_stats['val_acc_std']:.4f}")
-
-        print(f"\nTest Metrics:")
-        print(f"  Test SE:       {summary_stats['test_se_mean']:.4f} ± {summary_stats['test_se_std']:.4f}")
-        print(f"  Test SP:       {summary_stats['test_sp_mean']:.4f} ± {summary_stats['test_sp_std']:.4f}")
-        print(f"  Test MCC:      {summary_stats['test_mcc_mean']:.4f} ± {summary_stats['test_mcc_std']:.4f}")
-        print(f"  Test ACC:      {summary_stats['test_acc_mean']:.4f} ± {summary_stats['test_acc_std']:.4f}")
-        print(f"  Test AUC:      {summary_stats['test_auc_mean']:.4f} ± {summary_stats['test_auc_std']:.4f}")
-        print(f"  Test F1:       {summary_stats['test_f1_mean']:.4f} ± {summary_stats['test_f1_std']:.4f}")
-        print(f"  Test BA:       {summary_stats['test_ba_mean']:.4f} ± {summary_stats['test_ba_std']:.4f}")
-        print(f"  Test PRAUC:    {summary_stats['test_prauc_mean']:.4f} ± {summary_stats['test_prauc_std']:.4f}")
-        print(f"  Test PPV:      {summary_stats['test_ppv_mean']:.4f} ± {summary_stats['test_ppv_std']:.4f}")
-        print(f"  Test NPV:      {summary_stats['test_npv_mean']:.4f} ± {summary_stats['test_npv_std']:.4f}")
-
-        print(f"\nOther Statistics:")
-        print(f"  Avg Best Epoch: {avg_best_epoch:.1f} ± {std_best_epoch:.1f}")
-        print(f"  Successful Seeds: {len(successful_seeds)}/{len(Config.SEEDS)}")
-        print(f"  Failed Seeds: {len(failed_seeds)}/{len(Config.SEEDS)}")
-
-        if failed_seeds:
-            print(f"\n  Failed seed list: {failed_seeds}")
-
-        # Append summary row to CSV - updated to include all metrics
-        with open(Config.RESULTS_CSV, 'a', newline='') as f:
-            writer = csv.writer(f)
-            writer.writerow([])  # Empty row
-            writer.writerow([
-                'MEAN',
-                f"{avg_best_epoch:.1f}",
-                f"{summary_stats['val_loss_mean']:.6f}",
-                f"{summary_stats['val_acc_mean']:.4f}",
-                f"{summary_stats['val_auc_mean']:.4f}",
-                f"{summary_stats['val_prauc_mean']:.4f}",
-                f"{summary_stats['val_sensitivity_mean']:.4f}",
-                f"{summary_stats['val_specificity_mean']:.4f}",
-                f"{summary_stats['test_loss_mean']:.6f}",
-                f"{summary_stats['test_se_mean']:.4f}",
-                f"{summary_stats['test_sp_mean']:.4f}",
-                f"{summary_stats['test_mcc_mean']:.4f}",
-                f"{summary_stats['test_acc_mean']:.4f}",
-                f"{summary_stats['test_auc_mean']:.4f}",
-                f"{summary_stats['test_f1_mean']:.4f}",
-                f"{summary_stats['test_ba_mean']:.4f}",
-                f"{summary_stats['test_prauc_mean']:.4f}",
-                f"{summary_stats['test_ppv_mean']:.4f}",
-                f"{summary_stats['test_npv_mean']:.4f}"
-            ])
-            writer.writerow([
-                'STD',
-                f"{std_best_epoch:.1f}",
-                f"{summary_stats['val_loss_std']:.6f}",
-                f"{summary_stats['val_acc_std']:.4f}",
-                f"{summary_stats['val_auc_std']:.4f}",
-                f"{summary_stats['val_prauc_std']:.4f}",
-                f"{summary_stats['val_sensitivity_std']:.4f}",
-                f"{summary_stats['val_specificity_std']:.4f}",
-                f"{summary_stats['test_loss_std']:.6f}",
-                f"{summary_stats['test_se_std']:.4f}",
-                f"{summary_stats['test_sp_std']:.4f}",
-                f"{summary_stats['test_mcc_std']:.4f}",
-                f"{summary_stats['test_acc_std']:.4f}",
-                f"{summary_stats['test_auc_std']:.4f}",
-                f"{summary_stats['test_f1_std']:.4f}",
-                f"{summary_stats['test_ba_std']:.4f}",
-                f"{summary_stats['test_prauc_std']:.4f}",
-                f"{summary_stats['test_ppv_std']:.4f}",
-                f"{summary_stats['test_npv_std']:.4f}"
-            ])
-
-        print(f"\n{'='*80}")
-        print(f"All results saved to: {Config.RESULTS_CSV}")
-        print(f"Per-seed epoch logs in: {Config.LOG_DIR}/")
-        print(f"{'='*80}\n")
-    else:
-        print(f"\n{'='*80}")
-        print("[ERROR] No successful seeds! Check error messages above.")
-        print(f"{'='*80}\n")
-        sys.exit(1)
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Run ABFormer trainer")
+    parser.add_argument("--unique_split", action='store_true', help="Random Split Training / Unique Split Training")
+    args = parser.parse_args()
+    main(args.unique_split)
