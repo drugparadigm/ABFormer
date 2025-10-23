@@ -160,7 +160,7 @@ def main():
 
     # Load ADC model
     ADC_model = PredictModel().to(device)
-    ADC_model.load_state_dict(torch.load("ckpts/ADC_49_best_model.pth", map_location=device))
+    ADC_model.load_state_dict(torch.load("ckpts/ADC_49_best_model.pth",map_location=device,weights_only=False))
     ADC_model.eval()
 
     # Load AntiBinder model
@@ -170,7 +170,7 @@ def main():
         state_dict = {key[len("module."):]: value for key, value in state_dict.items()}
     
     AntiBinder_model = antibinder().to(device)
-    AntiBinder_model.load_state_dict(state_dict, strict=False)
+    state_dict = torch.load(checkpoint_path, map_location=device,weights_only=False)
     AntiBinder_model.eval()
 
     # Prepare input dictionary
