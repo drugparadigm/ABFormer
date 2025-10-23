@@ -147,69 +147,86 @@ def DAR_feature(dar_value):
 
 
 def main():
+    with open(json_path, 'r') as f:
+        data_json = json.load(f)
+    
+    # Extract sequences / values from JSON
+    Heavy_Chain_Sequence = data_json['Heavy_Chain_Sequence']
+    Light_Chain_Sequence = data_json['Light_Chain_Sequence']
+    Antigen_Sequence = data_json['Antigen_Sequence']
+    Linker_IsoSmile = data_json['Linker_IsoSmile']
+    Payload_IsoSmile = data_json['Payload_IsoSmile']
+    DAR_value = torch.tensor(data_json['DAR_value'], dtype=torch.float32).unsqueeze(0).unsqueeze(1).to(device)
+
+    # Load ADC model
     ADC_model = PredictModel().to(device)
-    ADC_model.load_state_dict(torch.load("ckpts/ADC_best.pth",map_location=device))
+    ADC_model.load_state_dict(torch.load("ckpts/ADC_best.pth", map_location=device))
     ADC_model.eval()
+
+    # Load AntiBinder model
     checkpoint_path = "model_weights/AntiBinder_Weights.pth"
     state_dict = torch.load(checkpoint_path, map_location=device)
-    
     if all(key.startswith("module.") for key in state_dict.keys()):
-        new_state_dict = {key[len("module."):]: value for key, value in state_dict.items()}
-    else:
-        new_state_dict = state_dict
+        state_dict = {key[len("module."):]: value for key, value in state_dict.items()}
     
     AntiBinder_model = antibinder().to(device)
-    AntiBinder_model.load_state_dict(new_state_dict,strict=False)
+    AntiBinder_model.load_state_dict(state_dict, strict=False)
     AntiBinder_model.eval()
 
-    Antigen_Sequence="MELAALCRWGLLLALLPPGAASTQVCTGTDMKLRLPASPETHLDMLRHLYQGCQVVQGNLELTYLPTNASLSFLQDIQEVQGYVLIAHNQVRQVPLQRLRIVRGTQLFEDNYALAVLDNGDPLNNTTPVTGASPGGLRELQLRSLTEILKGGVLIQRNPQLCYQDTILWKDIFHKNNQLALTLIDTNRSRACHPCSPMCKGSRCWGESSEDCQSLTRTVCAGGCARCKGPLPTDCCHEQCAAGCTGPKHSDCLACLHFNHSGICELHCPALVTYNTDTFESMPNPEGRYTFGASCVTACPYNYLSTDVGSCTLVCPLHNQEVTAEDGTQRCEKCSKPCARVCYGLGMEHLREVRAVTSANIQEFAGCKKIFGSLAFLPESFDGDPASNTAPLQPEQLQVFETLEEITGYLYISAWPDSLPDLSVFQNLQVIRGRILHNGAYSLTLQGLGISWLGLRSLRELGSGLALIHHNTHLCFVHTVPWDQLFRNPHQALLHTANRPEDECVGEGLACHQLCARGHCWGPGPTQCVNCSQFLRGQECVEECRVLQGLPREYVNARHCLPCHPECQPQNGSVTCFGPEADQCVACAHYKDPPFCVARCPSGVKPDLSYMPIWKFPDEEGACQPCPINCTHSCVDLDDKGCPAEQRASPLTSIISAVVGILLVVVLGVVFGILIKRRQQKIRKYTMRRLLQETELVEPLTPSGAMPNQAQMRILKETELRKVKVLGSGAFGTVYKGIWIPDGENVKIPVAIKVLRENTSPKANKEILDEAYVMAGVGSPYVSRLLGICLTSTVQLVTQLMPYGCLLDHVRENRGRLGSQDLLNWCMQIAKGMSYLEDVRLVHRDLAARNVLVKSPNHVKITDFGLARLLDIDETEYHADGGKVPIKWMALESILRRRFTHQSDVWSYGVTVWELMTFGAKPYDGIPAREIPDLLEKGERLPQPPICTIDVYMIMVKCWMIDSECRPRFRELVSEFSRMARDPQRFVVIQNEDLGPASPLDSTFYRSLLEDDDMGDLVDAEEYLVPQQGFFCPDPAPGAGGMVHHRHRSSSTRSGGGDLTLGLEPSEEEAPRSPLAPSEGAGSDVFDGDLGMGAAKGLQSLPTHDPSPLQRYSEDPTVPLPSETDGYVAPLTCSPQPEYVNQPDVRPQPPSPREGPLPAARPAGATLERPKTLSPGKNGVVKDVFAFGGAVENPEYLTPQGGAAPQPHPPPAFSPAFDNLYYWDQDPPERGAPPSTFKGTPTAENPEYLGLDVPV"
+    # Prepare input dictionary
+    new_dict = {
+        'x1': Linker_IsoSmile,
+        'x2': Payload_IsoSmile,
+        't1': Heavy_Chain_Sequence,
+        't2': Light_Chain_Sequence,
+        't3': Antigen_Sequence,
+        't4': DAR_value
+    }
 
-    Heavy_Chain_Sequence = "QVQLQQSGSELKKPGASVKVSCKASGYTFTNYGMNWVKQAPGQGLKWMGWINTYTGEPTYTDDFKGRFAFSLDTSVSTAYLQISSLKADDTAVYFCARGGFGSSYWYFDVWGQGSLVTVSSASTKGPSVFPLAPSSKSTSGGTAALGCLVKDYFPEPVTVSWNSGALTSGVHTFPAVLQSSGLYSLSSVVTVPSSSLGTQTYICNVNHKPSNTKVDKRVEPKSCDKTHTCPPCPAPELLGGPSVFLFPPKPKDTLMISRTPEVTCVVVDVSHEDPEVKFNWYVDGVEVHNAKTKPREEQYNSTYRVVSVLTVLHQDWLNGKEYKCKVSNKALPAPIEKTISKAKGQPREPQVYTLPPSREEMTKNQVSLTCLVKGFYPSDIAVEWESNGQPENNYKTTPPVLDSDGSFFLYSKLTVDKSRWQQGNVFSCSVMHEALHNHYTQKSLSLSPGK"
-    Light_Chain_Sequence = "DIQLTQSPSSLSASVGDRVSITCKASQDVSIAVAWYQQKPGKAPKLLIYSASYRYTGVPDRFSGSGSGTDFTLTISSLQPEDFAVYYCQQHYITPLTFGAGTKVEIKRTVAAPSVFIFPPSDEQLKSGTASVVCLLNNFYPREAKVQWKVDNALQSGNSQESVTEQDSKDSTYSLSSTLTLSKADYEKHKVYACEVTHQGLSSPVTKSFNRGEC"
-
-    Payload_IsoSmile = "CC[C@@]1(C2=C(COC1=O)C(=O)N3CC4=C5[C@H](CCC6=C5C(=CC(=C6C)F)N=C4C3=C2)NC(=O)CO)O"
-    
-    Linker_IsoSmile = "BrC1=CN=CC(C(N[C@@H](C)C(N[C@@H](C)C(NCO)=O)=O)=O)=C1"
-    DAR_value = 7.3
-    
-    DAR_value = torch.tensor(DAR_value, dtype=torch.float32).unsqueeze(0).unsqueeze(1).to(device)
-    new_dict = {'x1': Linker_IsoSmile, 'x2':Payload_IsoSmile,'t1':Heavy_Chain_Sequence,'t2': Light_Chain_Sequence,'t3':Antigen_Sequence,'t4':DAR_value}
     heavy_regions = split_heavy_chain_regions(Heavy_Chain_Sequence)
-    new_dict = new_dict | heavy_regions
-    data = [('protein 1', Antigen_Sequence),('protein2',Light_Chain_Sequence)]
-    
+    new_dict.update(heavy_regions)
+
+    data = [('protein1', Antigen_Sequence), ('protein2', Light_Chain_Sequence)]
     antigen_embed, lightchain_embed = [e.mean(dim=0, keepdim=True) for e in get_esm2_embeddings(data)]
-    
+
     padded_antigen = func_padding_for_esm(Antigen_Sequence, 1024)
     with torch.no_grad():
         padded_tokens = batch_converter([('antigen', padded_antigen)])[2].to(device)
-        antigen_structure = esm_model(padded_tokens.squeeze(1), repr_layers=[33], return_contacts=True)['representations'][33].squeeze(0)
+        antigen_structure = esm_model(
+            padded_tokens.squeeze(1),
+            repr_layers=[33],
+            return_contacts=True
+        )['representations'][33].squeeze(0)
 
-    heavy_emb_seq = new_dict['H-FR1'] + new_dict['H-CDR1'] + new_dict['H-FR2'] + new_dict['H-CDR2'] + new_dict['H-FR3'] + new_dict['H-CDR3']+new_dict['H-FR4']
-    sequences = {'H' : heavy_emb_seq}
-    antibody_set, antigen_set =  process_antibody_antigen(sequences, new_dict, antigen_structure)
-    antibody_set = [antibody_set[0].to(device), antibody_set[1].to(device), antibody_set[2].to(device)]
-    antigen_set = [antigen_set[0].to(device), antigen_set[1].to(device)]
+    # Heavy chain concatenation
+    heavy_emb_seq = new_dict['H-FR1'] + new_dict['H-CDR1'] + new_dict['H-FR2'] + new_dict['H-CDR2'] + new_dict['H-FR3'] + new_dict['H-CDR3'] + new_dict['H-FR4']
+    sequences = {'H': heavy_emb_seq}
+    antibody_set, antigen_set = process_antibody_antigen(sequences, new_dict, antigen_structure)
+    antibody_set = [a.to(device) for a in antibody_set[:3]]
+    antigen_set = [a.to(device) for a in antigen_set[:2]]
 
     var_heavy_emb = AntiBinder_model(antibody_set, antigen_set)
+
     linker_encoded = numerical_smiles(Linker_IsoSmile)
     payload_encoded = numerical_smiles(Payload_IsoSmile)
     x1 = F.pad(torch.tensor(linker_encoded), (0, 195 - len(linker_encoded))).unsqueeze(0).to(device).int()
     x2 = F.pad(torch.tensor(payload_encoded), (0, 184 - len(payload_encoded))).unsqueeze(0).to(device).int()
-    
+
     t1, t2, t3 = var_heavy_emb.to(device).float(), lightchain_embed.to(device).float(), antigen_embed.to(device).float()
-    t4 = torch.tensor(DAR_value).reshape(1).to(device).float()
-    
+    t4 = DAR_value.reshape(1).to(device).float()
+
     output = ADC_model(
         x1, mask1=None, adjoin_matrix1=None,
         x2=x2, mask2=None, adjoin_matrix2=None,
         t1=t1, t2=t2, t3=t3, t4=t4
     )
     output = torch.sigmoid(output)
-    print("ADC Activity:  "+str(output.item()))
-
+    print("ADC Activity:", output.item())
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Predict ADC activity from JSON input.")
+    parser.add_argument("--json_path", type=str, required=True, help="Path to input JSON file")
+    args = parser.parse_args()
+    main(args.json_path)
 
 
