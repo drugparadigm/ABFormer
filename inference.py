@@ -160,7 +160,7 @@ def main():
 
     # Load ADC model
     ADC_model = PredictModel().to(device)
-    ADC_model.load_state_dict(torch.load("ckpts/ADC_best.pth", map_location=device))
+    ADC_model.load_state_dict(torch.load("ckpts/ADC_49_best_model.pth", map_location=device))
     ADC_model.eval()
 
     # Load AntiBinder model
