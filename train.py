@@ -107,18 +107,9 @@ def evaluate_model_with_threshold(model, data_loader, device, criterion, thresho
     avg_loss = total_loss / len(data_loader)
     predictions = [1 if x >= threshold else 0 for x in all_outputs]
     accuracy = accuracy_score(all_labels, predictions)
-
-    try:
-        auc_score = roc_auc_score(all_labels, all_outputs)
-    except:
-        auc_score = 0.0
-
-    try:
-        prauc_score = average_precision_score(all_labels, all_outputs)
-    except:
-        prauc_score = 0.0
-
-    # Calculate specificity and sensitivity
+    auc_score = roc_auc_score(all_labels, all_outputs)
+    prauc_score = average_precision_score(all_labels, all_outputs)
+   # Calculate specificity and sensitivity
     tp = sum((p == 1 and l == 1) for p, l in zip(predictions, all_labels))
     tn = sum((p == 0 and l == 0) for p, l in zip(predictions, all_labels))
     fp = sum((p == 1 and l == 0) for p, l in zip(predictions, all_labels))
@@ -132,7 +123,7 @@ def evaluate_model_with_threshold(model, data_loader, device, criterion, thresho
 
 def train_one_seed(seed, config, device,UNIQUE_SPLIT):
     """
-    Train with improved checkpointing strategy and PRAUC tracking.
+    Train with improved checkpointing strategy.
     Returns dict with all metrics including best_epoch.
     """
     set_seed(seed)
@@ -331,7 +322,7 @@ def train_one_seed(seed, config, device,UNIQUE_SPLIT):
                 torch.save(model.state_dict(), checkpoint_path)
                 status = 'BEST'
                 if config.VERBOSE:
-                    tqdm.write(f'Epoch {epoch:3d} | New best! Val PRAUC: {val_prauc:.4f}, Val Acc: {val_acc:.4f}')
+                    tqdm.write(f'Epoch {epoch:3d} | New best! Val AUC: {val_auc:.4f}, Val Acc: {val_acc:.4f}')
             else:
                 stopping_monitor += 1
                 status = 'NO_IMPROVE'
@@ -349,11 +340,11 @@ def train_one_seed(seed, config, device,UNIQUE_SPLIT):
                              f'{current_lr:.2e}', status])
 
         if config.SHOW_PROGRESS_BARS and hasattr(epoch_pbar, 'set_postfix'):
-            epoch_pbar.set_postfix({'val_prauc': f'{val_prauc:.3f}', 'val_spec': f'{val_spec:.3f}'})
+            epoch_pbar.set_postfix({'val_auc': f'{val_auc:.3f}', 'val_spec': f'{val_spec:.3f}'})
 
         if stopping_monitor >= config.PATIENCE:
             if config.VERBOSE:
-                print(f"\n[INFO] Early stop at epoch {epoch}. Best Val PRAUC: {best_val_prauc:.4f} at epoch {best_epoch}.")
+                print(f"\n[INFO] Early stop at epoch {epoch}. Best Val AUC: {best_val_auc:.4f} at epoch {best_epoch}.")
             break
 
     # === Evaluation Phase ===
@@ -362,7 +353,7 @@ def train_one_seed(seed, config, device,UNIQUE_SPLIT):
         return None
 
     if config.VERBOSE:
-        print(f"\n[EVAL] Seed {seed} | Best Epoch: {best_epoch} | Val PRAUC: {best_val_prauc:.4f}")
+        print(f"\n[EVAL] Seed {seed} | Best Epoch: {best_epoch} | Val AUC: {best_val_auc:.4f}")
 
     model.load_state_dict(torch.load(checkpoint_path))
 
