@@ -41,9 +41,9 @@ class Config:
     NUM_HEADS = 8
     VOCAB_SIZE = 18
     
-    SEEDS = [1] 
+    SEEDS = [49] 
     BATCH_SIZE = 8
-    MAX_EPOCHS = 1
+    MAX_EPOCHS = 100
     MIN_CHECKPOINT_EPOCH = 20 
     PATIENCE = 30  # Early stopping patience
     
@@ -242,12 +242,12 @@ def train_one_seed(seed, config, device):
             x1, x2 = x1.to(device), x2.to(device)
             t1, t2, t3, t4 = t1.to(device), t2.to(device), t3.to(device), t4.to(device)
             labels = labels.to(device)
-            print(f"x1 shape: {x1.shape}")
-            print(f"x2 shape: {x2.shape}")
-            print(f"t1 (var_heavy_emb) shape: {t1.shape}")
-            print(f"t2 (lightchain_embed) shape: {t2.shape}")
-            print(f"t3 (antigen_embed) shape: {t3.shape}")
-            print(f"t4 (DAR tensor) shape: {t4.shape}")
+            # print(f"x1 shape: {x1.shape}")
+            # print(f"x2 shape: {x2.shape}")
+            # print(f"t1 (var_heavy_emb) shape: {t1.shape}")
+            # print(f"t2 (lightchain_embed) shape: {t2.shape}")
+            # print(f"t3 (antigen_embed) shape: {t3.shape}")
+            # print(f"t4 (DAR tensor) shape: {t4.shape}")
 
             outputs = model(x1, mask1=None, adjoin_matrix1=None,
                             x2=x2, mask2=None, adjoin_matrix2=None,
