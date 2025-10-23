@@ -153,8 +153,10 @@ def train_one_seed(seed, config, device,UNIQUE_SPLIT):
     
     dataset = AB_Data(config.DATA_FILE_PATH, config.EMBEDDING_PATHS)
     if UNIQUE_SPLIT:
+        print("****************************************************************\n\t\t\tUsing Unique Antigen-Antibody Pair Split\n****************************************************************")
         train_loader, val_loader, test_loader = dataset.get_dataloaders_from_csv(batch_size=config.BATCH_SIZE)
     else:
+        print("****************************************************************\n\t\t\tUsing Random Split\n****************************************************************")
         train_loader, val_loader, test_loader = dataset.get_dataloaders(
             batch_size=config.BATCH_SIZE,
             seed=seed
