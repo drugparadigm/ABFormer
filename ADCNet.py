@@ -156,11 +156,11 @@ class PredictModel(nn.Module):
 
         if t4.dim() == 1:
             t4 = t4.unsqueeze(1)
-        print("DAR SQUEEZE: ",t4.shape)
+        # print("DAR SQUEEZE: ",t4.shape)
 
 
         x = torch.cat((x1, x2, t1,t2,t3, t4), dim=1) 
-        print("Concat: ",x.shape)
+        # print("Concat: ",x.shape)
         x = self.fc1(x) 
         x = self.dropout1(x)
         x = self.fc2(x)
