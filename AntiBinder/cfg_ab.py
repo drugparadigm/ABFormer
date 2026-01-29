@@ -1,5 +1,4 @@
 from math import fabs
-from turtle import pd
 
 AminoAcid_Vocab = {
     "A":1,
