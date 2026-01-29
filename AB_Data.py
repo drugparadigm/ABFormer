@@ -11,7 +11,7 @@ from rdkit import RDConfig
 from rdkit.Chem import rdmolfiles
 from rdkit.Chem import rdmolops
 from rdkit.Chem import FragmentCatalog
-from rdkit.Chem import MACCSkeys # <--- CHANGED: Import added
+from rdkit.Chem import MACCSkeys 
 import torch.distributed as dist
 from torch.utils.data.distributed import DistributedSampler
 
@@ -25,7 +25,6 @@ class AB_Data:
         self.antigen_path = pkl_paths[2]
         self.df = pd.read_excel(self.csv_path)
 
-        # <--- CHANGED: Define column names for sequences (Please verify these match your Excel)
         self.heavy_col = "Antibody Heavy Chain Sequence" 
         self.light_col = "Antibody Light Chain Sequence"
         self.antigen_col = "Antigen Sequence"
@@ -34,7 +33,6 @@ class AB_Data:
          'I': 10,'Na': 11,'B':12,'Se':13,'Si':14,'<unk>':15,'<mask>':16,'<global>':17}
         self.num2str =  {i:j for j,i in self.str2num.items()}
 
-    # <--- CHANGED: New function for AAC
     def calc_aac(self, seq):
         if pd.isna(seq) or seq == "":
             return torch.zeros(20)
@@ -46,7 +44,7 @@ class AB_Data:
         aac = [c / length for c in counts]
         return torch.tensor(aac, dtype=torch.float32)
 
-    # <--- CHANGED: New function for MACCS
+
     def calc_maccs(self, smiles):
         mol = Chem.MolFromSmiles(smiles)
         if mol is None:
