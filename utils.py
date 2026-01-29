@@ -46,39 +46,56 @@ class CSVLogger_my:
             string=string[:len(string)-1]
             string+="\n"
             f.write(string)
+import math
+import numpy as np
+import torch
+from sklearn.metrics import (
+    roc_auc_score,
+    precision_recall_curve,
+    auc,
+    confusion_matrix
+)
 
-def score(y_true, y_pred_prob):
-    y_pred = [1 if x >= 0.5 else 0 for x in y_pred_prob]
+def score(y_true, y_pred):
 
     if isinstance(y_true, torch.Tensor):
-        y_true_np = y_true.cpu().numpy().astype(int)
+        y_true = y_true.detach().cpu().numpy()
     else:
-        y_true_np = np.array(y_true).astype(int)
+        y_true = np.asarray(y_true)
 
-    y_pred_np = np.array(y_pred).astype(int)
-    y_pred_prob_np = np.array([x.detach().cpu().numpy() if isinstance(x, torch.Tensor) else x for x in y_pred_prob])
+    if isinstance(y_pred, torch.Tensor):
+        y_pred = y_pred.detach().cpu().numpy()
+    else:
+        y_pred = np.asarray(y_pred)
 
+    y_true = y_true.reshape(-1).astype(int)
+    y_pred = y_pred.reshape(-1).astype(float)
 
-    tp = np.sum((y_pred_np == 1) & (y_true_np == 1))
-    tn = np.sum((y_pred_np == 0) & (y_true_np == 0))
-    fp = np.sum((y_pred_np == 1) & (y_true_np == 0))
-    fn = np.sum((y_pred_np == 0) & (y_true_np == 1))
+    auc_roc = roc_auc_score(y_true, y_pred)
+
+    precision, recall, _ = precision_recall_curve(y_true, y_pred)
+    prauc = auc(recall, precision)
+
+    y_pred_bin = np.round(y_pred).astype(int)
+
+    tn, fp, fn, tp = confusion_matrix(y_true, y_pred_bin).ravel()
 
     se = tp / (tp + fn) if (tp + fn) > 0 else 0.0
     sp = tn / (tn + fp) if (tn + fp) > 0 else 0.0
 
-    acc = (tp + tn) / (tp + tn + fp + fn) if (tp + tn + fp + fn) > 0 else 0.0
-    mcc = matthews_corrcoef(y_true_np, y_pred_np)
-    auc_roc = accuracy_score(y_true_np, y_pred_np)
-    f1 = f1_score(y_true_np, y_pred_np)
-    ba = (se + sp) / 2
-    precision, recall, _ = precision_recall_curve(y_true_np, y_pred_prob_np)
-    prauc = auc(recall, precision)
+    acc = (tp + tn) / (tp + fn + tn + fp) if (tp + fn + tn + fp) > 0 else 0.0
 
+    denom = (tp + fn) * (tp + fp) * (tn + fn) * (tn + fp)
+    mcc = ((tp * tn - fn * fp) / math.sqrt(denom)) if denom > 0 else 0.0
+
+    P = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+    f1 = (2 * P * se) / (P + se) if (P + se) > 0 else 0.0
+
+    ba = (se + sp) / 2.0
     ppv = tp / (tp + fp) if (tp + fp) > 0 else 0.0
     npv = tn / (tn + fn) if (tn + fn) > 0 else 0.0
 
-    score_dict = {
+    return {
         'tp': tp,
         'tn': tn,
         'fn': fn,
@@ -87,7 +104,7 @@ def score(y_true, y_pred_prob):
         'specificity': sp,
         'mcc': mcc,
         'accuracy': acc,
-        'accuracy_score': auc_roc,
+        'roc_auc': auc_roc,
         'f1_score': f1,
         'balanced_accuracy': ba,
         'pr_auc': prauc,
@@ -95,7 +112,6 @@ def score(y_true, y_pred_prob):
         'npv': npv
     }
 
-    return score_dict
 
 def metrics_from_log(log_path):
   df = pd.read_csv(log_path)
