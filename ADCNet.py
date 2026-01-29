@@ -1,13 +1,6 @@
-import pandas as pd
-import pickle
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import rdkit
-from rdkit import Chem
-import numpy as np
-from torch.nn.utils.rnn import pad_sequence
-from sklearn.model_selection  import train_test_split
 
 
 def scaled_dot_product_attention(q, k, v, mask=None, adjoin_matrix=None):
@@ -103,7 +96,7 @@ class EncoderLayer(nn.Module):
 
 class Encoder(nn.Module):
     def __init__(self, num_layers, d_model, num_heads, dff, input_vocab_size, 
-                 maximum_position_encoding, rate=0.1):
+               maximum_position_encoding, rate=0.1):
         super().__init__()
 
         self.d_model = d_model
@@ -141,13 +134,16 @@ class PredictModel(nn.Module):
             maximum_position_encoding=200,
             rate=dropout_rate
         )
-        self.fc1 = nn.Linear(5665, d_model)
+        self.fc1 = nn.Linear(6059, d_model)
+        
         self.dropout1 = nn.Dropout(dropout_rate)
         self.fc2 = nn.Linear(d_model,d_model)
         self.dropout2 = nn.Dropout(dropout_rate)
         self.fc3 = nn.Linear(d_model, 1)
 
-    def forward(self, x1, x2, t1, t2, t3, t4, adjoin_matrix1=None, mask1=None, adjoin_matrix2=None, mask2=None, training=False):
+    def forward(self, x1, x1maccs, x2, x2maccs, t1, t2, t3, aac1, aac2, aac3, t4, 
+                adjoin_matrix1=None, mask1=None, adjoin_matrix2=None, mask2=None, training=False):
+        
         x1, attention_weights1 = self.encoder(x1, training=training, mask=mask1, adjoin_matrix=adjoin_matrix1)
         x1 = x1[:, 0, :] 
 
@@ -156,11 +152,8 @@ class PredictModel(nn.Module):
 
         if t4.dim() == 1:
             t4 = t4.unsqueeze(1)
-        # print("DAR SQUEEZE: ",t4.shape)
-
-
-        x = torch.cat((x1, x2, t1,t2,t3, t4), dim=1) 
-        # print("Concat: ",x.shape)
+        x = torch.cat((x1, x1maccs, x2, x2maccs, t1, t2, t3, aac1, aac2, aac3, t4), dim=1) 
+        
         x = self.fc1(x) 
         x = self.dropout1(x)
         x = self.fc2(x)
