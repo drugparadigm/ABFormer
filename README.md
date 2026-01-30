@@ -1,88 +1,88 @@
-# ABFormer: A Transformer-based Model for ADC Activity Prediction
 
-ABFormer is a novel, multi-channel deep learning framework designed to predict the activity of Antibody-Drug Conjugates (ADCs) with enhanced accuracy. The model addresses a critical limitation in existing computational approaches by incorporating contextual antibody-antigen binding interactions rather than treating ADC components as independent features.
+# **ABFormer: A Transformer-Based Multi-Modal Framework for ADC Activity Prediction**
 
-## Overview
+ABFormer is a multi-modal deep learning architecture designed for activity prediction and in-silico triage of Antibody–Drug Conjugates (ADCs). Unlike prior models—most notably ADCNet—that treat antibodies, antigens, linkers, and payloads as independent features, ABFormer introduces a contextualized antibody–antigen binding representation derived from a pretrained interaction encoder. This interface-aware design improves generalization to unseen antibody–antigen pairs and prevents the over-optimistic behaviour observed in baseline models.
 
-Antibody-Drug Conjugates represent a sophisticated therapeutic modality that combines the targeting specificity of antibodies with the cytotoxic potency of small molecule drugs. Accurate prediction of ADC activity is essential for accelerating drug development and reducing experimental costs. ABFormer significantly advances the state of the art in this domain through its innovative architecture.
+---
 
-## The Problem
+## **Overview**
 
-Previous computational models for ADC activity prediction, including ADCNet, typically process the antibody, antigen, and drug components as independent features. This approach fundamentally overlooks the dynamic interactions occurring at the antibody-antigen binding interface, which are critical determinants of an ADC's specificity and subsequent cellular internalization. The absence of contextual binding information limits the predictive accuracy of these models.
+Antibody–Drug Conjugates combine a monoclonal antibody, a cleavable linker, and a cytotoxic payload into a single targeted therapeutic. Their biological activity depends on the integrated behaviour of these components, with antibody–antigen binding constituting the primary determinant of cellular uptake. Traditional computational models overlook this interface and perform naïve feature concatenation, limiting their capacity to distinguish active from inactive ADCs.
 
-## Our Solution
+ABFormer addresses this limitation via interaction-centric transfer learning: antibody heavy chains and antigens are passed jointly through a pretrained bi-cross-attention encoder (AntiBinder), producing biologically meaningful embeddings that capture binding interface context.
 
-ABFormer addresses this limitation by integrating contextual antibody-antigen binding features directly into the prediction workflow. The model leverages a re-purposed AntiBinder module to generate high-dimensional, interaction-aware feature representations that encode the complex molecular recognition dynamics at the binding interface. This contextual approach enables the model to capture the nuanced interplay between antibody and antigen that determines ADC efficacy.
+---
 
-## Performance
+## **Key Contributions**
 
-ABFormer demonstrates substantial improvements over baseline models on the public ADCdb dataset, achieving 85.61% accuracy compared to 72.73% for ADCNet, and 84.25% balanced accuracy compared to 70.88%. The model's robust generalization capability is further evidenced by its 100% accuracy on an independent external test set comprising 21 novel ADCs.
+* **Contextualized Antibody–Antigen Interface Encoding**
+  ABFormer uses a frozen AntiBinder encoder to extract 2592-dimensional interaction-aware embeddings integrating ESM-2 sequence features and IgFold structural signals.
 
-## Architecture
+* **Small Molecules Processing**
+  Linker and payload isoSMILES strings are embedded using a PyTorch re-implementation of FG-BERT (256-dimensional each), jointly fine-tuned during training. MACCS fingerprints provide complementary handcrafted features.
 
-ABFormer employs a multi-modal architecture that integrates five distinct input streams to generate comprehensive feature representations:
+* **Structured Protein Representations**
+  Antibody light chain and antigen sequences are embedded via ESM-2 (1280-dimensional each). AAC descriptors are used for Antibody heavy chain, light chain and antigen. MACCS fingerprints provide complementary handcrafted features.
 
-The small molecule components, specifically the linker and payload, are encoded from their isoSMILES string representations using two separate FG-BERT encoders. Each encoder consists of a 6-layer Transformer architecture that produces a 256-dimensional embedding vector capturing the chemical properties of these molecules.
+* **Multi-Modal Fusion Architecture**
+  All features—including DAR—are concatenated into a 6059-dimensional vector and passed through an MLP prediction head (6059 → 256 → 256 → 1) with GeLU activations.
 
-The antibody-antigen binding interface represents the core innovation of ABFormer. Rather than processing the antibody heavy chain and antigen sequences independently, these sequences are fed jointly into a pre-trained AntiBinder module. This module internally leverages both sequence information from ESM-2 and structural data from IgFold to generate a single 2592-dimensional contextual embedding that represents the binding interaction holistically.
+* **Selective Fine-Tuning Strategy**
+  AntiBinder, ESM-2, and IgFold remain frozen; FG-BERT and the MLP are trainable. This avoids overfitting in the chemically sparse ADCdb dataset.
 
-The antibody light chain sequence is processed independently through the ESM-2 protein language model, yielding a 1280-dimensional feature vector that captures the sequence characteristics of this component.
+---
 
-The antigen sequence is also encoded separately using ESM-2 to produce a 1280-dimensional vector, ensuring that complete sequence information is retained beyond the binding context alone.
+## **Architecture**
 
-The Drug-to-Antibody Ratio (DAR), a critical pharmacological parameter, is incorporated as a standardized and normalized scalar value.
+![Architecture Image](images/arch.png)
 
-These five feature vectors are concatenated into a single 5665-dimensional composite representation. This unified feature vector is then processed through a Multi-Layer Perceptron consisting of fully connected layers, culminating in a sigmoid activation function that produces the binary classification output
+**Feature Encoders**
 
-![Architecture Image](https://api.drugparadigm.com/public/images/ABFormer.png)
+* AntiBinder (frozen): antibody–antigen interface → 2592-dim
+* ESM-2 (frozen): light chain → 1280-dim, antigen → 1280-dim
+* FG-BERT (fine-tuned): linker → 256-dim, payload → 256-dim
+* MACCS (167-bit): linker, payload
+* AAC descriptors: heavy chain, light chain, antigen
+* DAR (scalar)
 
-## Installation
+**Fusion**
 
-Begin by cloning the repository to your local environment:
+* Concatenated 6059-dimensional vector
+* Fully-connected MLP with GeLU activations
+* Sigmoid output for binary activity classification
+
+---
+
+## **Installation**
 
 ```bash
 git clone https://github.com/drugparadigm/ABFormer.git
 cd ABFormer
-```
 
-Create and activate the Conda environment using the provided configuration file, which will install all necessary dependencies including Python, PyTorch, and supporting libraries:
-
-```bash
 conda env create -f ABFormer_env.yml
 conda activate ABFormer
 ```
 
+---
 
-## Usage
+## **Usage**
 
-The repository provides several scripts for training, validation, and inference operations.
-
-To train the model using a standard random split of the dataset:
+### **Random Split Training**
 
 ```bash
 python train.py
 ```
 
-To train using the unique Antigen-Antibody pairs split, which implements Leave-Pair-Out validation to ensure no antibody-antigen pairs in the test set appear in the training set:
+### **Leave-Pair-Out Split Training**
 
 ```bash
 python train.py --unique_split
 ```
 
-To run ablation studies that train the model without the AntiBinder module, thereby validating its contribution to overall performance:
+### **Inference on New Samples**
 
 ```bash
-python ablation.py
+python inference.py --seed="$seed" --json_path="data.json"
 ```
 
-To perform 5-Fold Cross-Validation testing:
-
-```bash
-python cross_validation_test.py
-```
-
-To run inference on new data, provide your input in JSON format:
-
-```bash
-python inference.py --json_path="data.json"
-```
+---
