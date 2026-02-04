@@ -34,7 +34,7 @@ ABFormer addresses this limitation via interaction-centric transfer learning: an
 
 ## **Architecture**
 
-![Architecture Image](ABFormer.png)
+![Architecture Image](architecture.png)
 
 **Feature Encoders**
 
