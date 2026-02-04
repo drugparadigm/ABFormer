@@ -58,6 +58,7 @@ ABFormer addresses this limitation via interaction-centric transfer learning: an
 ```bash
 git clone https://github.com/drugparadigm/ABFormer.git
 cd ABFormer
+git lfs pull
 
 conda env create -f ABFormer_env.yml
 conda activate ABFormer
